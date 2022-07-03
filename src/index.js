@@ -2,6 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 
+let winningPatternLength = 4;
+let sizeOfBoard = 10;
+
 class Square extends React.Component {
   constructor(props) {
     super(props);
@@ -20,58 +23,60 @@ class Square extends React.Component {
 }
 
 class Board extends React.Component {
-  renderSquare(i) {
+  renderRows() {
+    const columns = [];
+    for (let rowNo = 0; rowNo < sizeOfBoard; rowNo++) {
+      columns.push(<div className="board-row">{this.renderRow(rowNo)}</div>);
+    }
+    return columns;
+  }
+
+  renderRow(rowNo) {
+    const squares = [];
+    for (let columnNo = 0; columnNo < sizeOfBoard; columnNo++) {
+      squares.push(this.renderCell(rowNo, columnNo));
+    }
+    return squares;
+  }
+
+  renderCell(rowNo, columnNo) {
     return (
       <Square
-        value={this.props.squares[i]}
-        onClick={() => this.props.onClick(i)}
+        value={this.props.squares[rowNo][columnNo]}
+        onClick={() => this.props.onClick(rowNo, columnNo)}
       />
     );
   }
 
   render() {
-    return (
-      <div>
-        <div className="board-row">
-          {this.renderSquare(0)}
-          {this.renderSquare(1)}
-          {this.renderSquare(2)}
-        </div>
-        <div className="board-row">
-          {this.renderSquare(3)}
-          {this.renderSquare(4)}
-          {this.renderSquare(5)}
-        </div>
-        <div className="board-row">
-          {this.renderSquare(6)}
-          {this.renderSquare(7)}
-          {this.renderSquare(8)}
-        </div>
-      </div>
-    );
+    return <div>{this.renderRows()}</div>;
   }
 }
 
 class Game extends React.Component {
   constructor(props) {
     super(props);
+
+    var boardArray = [];
+    for (let i = 0; i < sizeOfBoard; i++) {
+      boardArray.push(new Array(sizeOfBoard).fill(null));
+    }
     this.state = {
-      history: [{ squares: Array(9).fill(null) }],
+      history: [{ squares: boardArray }],
       isXNext: true,
       stepNumber: 0
     };
   }
 
-  handleClick(i) {
+  handleClick(rowNo, columnNo) {
     const history = this.state.history.slice(0, this.state.stepNumber + 1);
     const current = history[history.length - 1];
     const squares = current.squares.slice();
-    if (calculateWinner(squares) || squares[i]) {
+    if (doWeHaveWinner(squares) || squares[rowNo][columnNo]) {
       return;
     }
-    squares[i] = this.state.isXNext ? "X" : "O";
+    squares[rowNo][columnNo] = this.state.stepNumber % 2 === 0 ? "X" : "O";
     this.setState({
-      isXNext: !this.state.isXNext,
       history: history.concat([{ squares: squares }]),
       stepNumber: history.length
     });
@@ -79,15 +84,15 @@ class Game extends React.Component {
 
   jumpTo(step) {
     this.setState({
-      stepNumber: step,
-      xIsNext: step % 2 === 0
+      stepNumber: step
+      //xIsNext: step % 2 === 0
     });
   }
 
   render() {
     const history = this.state.history;
     const current = this.state.history[this.state.stepNumber];
-    const winner = calculateWinner(current.squares);
+    const winner = doWeHaveWinner(current.squares);
     const moves = history.map((step, move) => {
       const desc = move ? "Go to move #" + move : "Go to game start";
       return (
@@ -100,14 +105,14 @@ class Game extends React.Component {
     if (winner) {
       status = "Winner: " + winner;
     } else {
-      status = "Next player: " + (this.state.isXNext ? "X" : "O");
+      status = "Next player: " + (this.state.stepNumber % 2 === 0 ? "X" : "O");
     }
     return (
       <div className="game">
         <div className="game-board">
           <Board
             squares={current.squares}
-            onClick={(i) => this.handleClick(i)}
+            onClick={(row, column) => this.handleClick(row, column)}
           />
         </div>
         <div className="game-info">
@@ -119,22 +124,170 @@ class Game extends React.Component {
   }
 }
 
-const calculateWinner = (squares) => {
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6]
-  ];
-  for (let i = 0; i < lines.length; i++) {
-    const [a, b, c] = lines[i];
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a];
+const isRowWinner = (squares) => {
+  for (let row = 0; row < sizeOfBoard; row++) {
+    for (
+      let compareColumn = 0;
+      compareColumn <= sizeOfBoard - winningPatternLength;
+      compareColumn++
+    ) {
+      if (!squares[row][compareColumn]) {
+        continue;
+      }
+      let rowFullfilled = true;
+      for (
+        let column = compareColumn + 1;
+        column < compareColumn + winningPatternLength;
+        column++
+      ) {
+        if (squares[row][compareColumn] !== squares[row][column]) {
+          rowFullfilled = false;
+          break;
+        }
+      }
+      if (rowFullfilled) return squares[row][compareColumn];
     }
+  }
+  return null;
+};
+
+const isColumnWinner = (squares) => {
+  for (let column = 0; column < sizeOfBoard; column++) {
+    for (
+      let compareRow = 0;
+      compareRow <= sizeOfBoard - winningPatternLength;
+      compareRow++
+    ) {
+      if (!squares[compareRow][column]) {
+        continue;
+      }
+      let columnFullfilled = true;
+      for (
+        let row = compareRow + 1;
+        row < compareRow + winningPatternLength;
+        row++
+      ) {
+        if (squares[compareRow][column] !== squares[row][column]) {
+          columnFullfilled = false;
+          break;
+        }
+      }
+      if (columnFullfilled) return squares[compareRow][column];
+    }
+  }
+  return null;
+};
+
+const isDiagonalPatternFullfilled = (squares) => {
+  console.log("squares:", squares);
+  for (
+    let comparedColumn = 0;
+    comparedColumn <= sizeOfBoard - winningPatternLength;
+    comparedColumn++
+  ) {
+    for (
+      let comparedRow = 0;
+      comparedRow <= sizeOfBoard - winningPatternLength;
+      comparedRow++
+    ) {
+      console.log(
+        "compared row and column",
+        comparedRow,
+        comparedColumn,
+        squares[comparedRow][comparedColumn]
+      );
+      if (!squares[comparedRow][comparedColumn]) {
+        console.log("Continue");
+        continue;
+      }
+      let diagonalFullfilled = true;
+      for (let index = 1; index < winningPatternLength; index++) {
+        console.log(
+          "checking",
+          comparedRow + index,
+          comparedColumn + index,
+          squares[comparedRow + index][comparedColumn + index]
+        );
+        if (
+          squares[comparedRow][comparedColumn] !==
+          squares[comparedRow + index][comparedColumn + index]
+        ) {
+          diagonalFullfilled = false;
+          console.log("breaking for row column");
+          break;
+        }
+      }
+      if (diagonalFullfilled) return squares[comparedRow][comparedColumn];
+    }
+  }
+  return null;
+};
+
+const isCrossDiagonalPatternFullfilled = (squares) => {
+  console.log("squares:", squares);
+  for (
+    let comparedColumn = sizeOfBoard;
+    comparedColumn >= sizeOfBoard - winningPatternLength;
+    comparedColumn--
+  ) {
+    for (
+      let comparedRow = 0;
+      comparedRow <= sizeOfBoard - winningPatternLength;
+      comparedRow++
+    ) {
+      console.log(
+        "compared row and column",
+        comparedRow,
+        comparedColumn,
+        squares[comparedRow][comparedColumn]
+      );
+      if (!squares[comparedRow][comparedColumn]) {
+        console.log("Continue");
+        continue;
+      }
+      let diagonalFullfilled = true;
+      for (let index = 1; index < winningPatternLength; index++) {
+        console.log(
+          "checking",
+          comparedRow + index,
+          comparedColumn - index,
+          squares[comparedRow + index][comparedColumn - index]
+        );
+        if (
+          squares[comparedRow][comparedColumn] !==
+          squares[comparedRow + index][comparedColumn - index]
+        ) {
+          diagonalFullfilled = false;
+          console.log("breaking for row column");
+          break;
+        }
+      }
+      if (diagonalFullfilled) return squares[comparedRow][comparedColumn];
+    }
+  }
+  return null;
+};
+
+const doWeHaveWinner = (squares) => {
+  let winner = isRowWinner(squares);
+  if (winner) {
+    console.log("ROW fullfilled");
+    return winner;
+  }
+  winner = isColumnWinner(squares);
+  if (winner) {
+    console.log("column fullfilled");
+    return winner;
+  }
+  winner = isDiagonalPatternFullfilled(squares);
+  if (winner) {
+    console.log("diagonal fullfilled");
+    return winner;
+  }
+  winner = isCrossDiagonalPatternFullfilled(squares);
+  if (winner) {
+    console.log("cross diagonal fullfilled");
+    return winner;
   }
   return null;
 };
